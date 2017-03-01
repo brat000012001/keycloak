@@ -60,6 +60,7 @@ public class MockHelper {
     private String realmName = null;
     private int accessCodeLifespan = 0;
     private int accessTokenLifespan = 0;
+    private int accessTokenLifespanForImplicitFlow = 0;
 
     private Map<ProtocolMapperModel, ProtocolMapper> protocolMappers = new HashMap<>();
 
@@ -132,6 +133,7 @@ public class MockHelper {
         when(getRealm().isEnabled()).thenReturn(true);
         when(getRealm().getAccessCodeLifespan()).thenReturn(getAccessCodeLifespan());
         when(getRealm().getAccessTokenLifespan()).thenReturn(getAccessTokenLifespan());
+        when(getRealm().getAccessTokenLifespanForImplicitFlow()).thenReturn(getAccessTokenLifespanForImplicitFlow());
         generateRealmKeys(getActiveKey(), getRealm());
     }
 
@@ -336,6 +338,15 @@ public class MockHelper {
 
     public MockHelper setAccessTokenLifespan(int accessTokenLifespan) {
         this.accessTokenLifespan = accessTokenLifespan;
+        return this;
+    }
+
+    public int getAccessTokenLifespanForImplicitFlow() {
+        return accessTokenLifespanForImplicitFlow;
+    }
+
+    public MockHelper setAccessTokenLifespanForExplicitFlow(int accessTokenLifespanForExplicitFlow) {
+        this.accessTokenLifespanForImplicitFlow = accessTokenLifespanForExplicitFlow;
         return this;
     }
 

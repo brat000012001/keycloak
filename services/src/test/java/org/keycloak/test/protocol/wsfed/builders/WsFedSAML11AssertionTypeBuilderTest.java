@@ -117,8 +117,8 @@ public class WsFedSAML11AssertionTypeBuilderTest {
         // Verify that the token time is within the time interval specified by the conditions statement
         // and that the time interval is adjusted by a small amount to account for clock skew
         assertEquals(token.getConditions().getNotBefore(), XMLTimeUtil.subtract(token.getIssueInstant(), CLOCK_SKEW));
-        assertEquals(XMLTimeUtil.add(token.getConditions().getNotBefore(), mockHelper.getAccessCodeLifespan() * 1000 + CLOCK_SKEW + CLOCK_SKEW), token.getConditions().getNotOnOrAfter());
-        assertEquals(XMLTimeUtil.add(token.getIssueInstant(), mockHelper.getAccessCodeLifespan() * 1000 + CLOCK_SKEW), token.getConditions().getNotOnOrAfter());
+        assertEquals(XMLTimeUtil.add(token.getConditions().getNotBefore(), mockHelper.getAccessTokenLifespanForImplicitFlow() * 1000 + CLOCK_SKEW + CLOCK_SKEW), token.getConditions().getNotOnOrAfter());
+        assertEquals(XMLTimeUtil.add(token.getIssueInstant(), mockHelper.getAccessTokenLifespanForImplicitFlow() * 1000 + CLOCK_SKEW), token.getConditions().getNotOnOrAfter());
 
         assertEquals(mockHelper.getClientId(), ((SAML11AudienceRestrictionCondition) token.getConditions().get().get(0)).get().get(0).toString());
 

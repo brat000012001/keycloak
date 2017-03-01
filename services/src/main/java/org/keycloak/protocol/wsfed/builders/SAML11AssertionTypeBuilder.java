@@ -51,25 +51,12 @@ public class SAML11AssertionTypeBuilder {
     protected String requestID;
     protected String issuer;
     protected String requestIssuer;
-    protected int subjectExpiration;
     protected int assertionExpiration;
     protected String nameId;
     protected String nameIdFormat;
 
     public SAML11AssertionTypeBuilder issuer(String issuer) {
         this.issuer = issuer;
-        return this;
-    }
-
-    /**
-     * Length of time in seconds the subject can be confirmed
-     * See SAML core specification 2.4.1.2 NotOnOrAfter
-     *
-     * @param subjectExpiration Number of seconds the subject should be valid
-     * @return
-     */
-    public SAML11AssertionTypeBuilder subjectExpiration(int subjectExpiration) {
-        this.subjectExpiration = subjectExpiration;
         return this;
     }
 

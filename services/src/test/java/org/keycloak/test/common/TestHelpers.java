@@ -189,7 +189,8 @@ public class TestHelpers {
                 .setUserName("username")
                 .setRealmName("ExampleRealm")
                 .setAccessCodeLifespan(1000)
-                .setAccessTokenLifespan(2000);
+                .setAccessTokenLifespan(2000)
+                .setAccessTokenLifespanForExplicitFlow(15000);
 
         return mockHelper;
     }

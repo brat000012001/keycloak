@@ -98,8 +98,7 @@ public class WsFedSAML11AssertionTypeBuilder extends WsFedSAMLAssertionTypeAbstr
 
         SAML11AssertionTypeBuilder builder = new SAML11AssertionTypeBuilder();
         builder.issuer(responseIssuer)
-                .assertionExpiration(realm.getAccessCodeLifespan())
-                .subjectExpiration(realm.getAccessTokenLifespan())
+                .assertionExpiration(realm.getAccessTokenLifespanForImplicitFlow())
                 .nameIdentifier(nameIdFormat, nameId)
                 .requestIssuer(clientSession.getClient().getClientId());
 
