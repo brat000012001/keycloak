@@ -18,6 +18,7 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
+import java.nio.charset.Charset;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.NoSuchAlgorithmException;
@@ -90,7 +91,13 @@ public class DockerComposeYamlInstallationProviderTest {
         final Optional<String> dockerComposeFileContents = getFileContents(zipInput, ROOT_DIR + "docker-compose.yaml");
 
         assertThat("Could not find docker-compose.yaml file in zip archive response", dockerComposeFileContents.isPresent(), equalTo(true));
-        final boolean zipFileContentEqualsTestFile = IOUtils.contentEquals(new ByteArrayInputStream(dockerComposeFileContents.get().getBytes()), new FileInputStream("src/test/resources/docker-compose-expected.yaml"));
+
+        // A workaround to make the test pass on Windows
+        FileInputStream input2 = new FileInputStream("src/test/resources/docker-compose-expected.yaml");
+        String testString = IOUtils.toString(input2, Charset.forName("UTF-8"));
+        testString = testString.replaceAll("\r", "");
+
+        final boolean zipFileContentEqualsTestFile = IOUtils.contentEquals(new ByteArrayInputStream(dockerComposeFileContents.get().getBytes()), new ByteArrayInputStream(testString.getBytes()));
         assertThat("Invalid docker-compose file contents: \n" + dockerComposeFileContents.get(), zipFileContentEqualsTestFile, equalTo(true));
     }
 

@@ -45,15 +45,6 @@ public class ValidateX509CertificateUsername extends AbstractX509ClientCertifica
     @Override
     public void authenticate(AuthenticationFlowContext context) {
 
-        X509Certificate[] certs = getCertificateChain(context);
-        if (certs == null || certs.length == 0) {
-            logger.debug("[ValidateX509CertificateUsername:authenticate] x509 client certificate is not available for mutual SSL.");
-            context.getEvent().error(Errors.USER_NOT_FOUND);
-            Response challengeResponse = errorResponse(Response.Status.UNAUTHORIZED.getStatusCode(), "invalid_request", "X509 client certificate is missing.");
-            context.failure(AuthenticationFlowError.INVALID_USER, challengeResponse);
-            return;
-        }
-
         X509AuthenticatorConfigModel config = null;
         if (context.getAuthenticatorConfig() != null && context.getAuthenticatorConfig().getConfig() != null) {
             config = new X509AuthenticatorConfigModel(context.getAuthenticatorConfig());
@@ -65,6 +56,25 @@ public class ValidateX509CertificateUsername extends AbstractX509ClientCertifica
             context.failure(AuthenticationFlowError.INVALID_USER, challengeResponse);
             return;
         }
+
+        X509Certificate[] certs;
+        try {
+            certs = getCertificateChain(context, config);
+            if (certs == null || certs.length == 0) {
+                logger.info("[ValidateX509CertificateUsername:authenticate] x509 client certificate is not available for mutual SSL.");
+                context.getEvent().error(Errors.USER_NOT_FOUND);
+                Response challengeResponse = errorResponse(Response.Status.UNAUTHORIZED.getStatusCode(), "invalid_request", "X509 client certificate is missing.");
+                context.failure(AuthenticationFlowError.INVALID_USER, challengeResponse);
+                return;
+            }
+        }
+        catch(GeneralSecurityException | IllegalArgumentException e) {
+            logger.error(e.getMessage(), e);
+            Response challengeResponse = errorResponse(Response.Status.UNAUTHORIZED.getStatusCode(), "invalid_request", e.getMessage());
+            context.failure(AuthenticationFlowError.INTERNAL_ERROR, challengeResponse);
+            return;
+        }
+
         // Validate X509 client certificate
         try {
             CertificateValidator.CertificateValidatorBuilder builder = certificateValidationParameters(config);

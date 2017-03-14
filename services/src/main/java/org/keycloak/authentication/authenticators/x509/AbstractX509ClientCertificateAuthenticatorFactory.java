@@ -32,10 +32,13 @@ import org.keycloak.services.ServicesLogger;
 import static org.keycloak.authentication.authenticators.x509.AbstractX509ClientCertificateAuthenticator.CERTIFICATE_EXTENDED_KEY_USAGE;
 import static org.keycloak.authentication.authenticators.x509.AbstractX509ClientCertificateAuthenticator.CERTIFICATE_KEY_USAGE;
 import static org.keycloak.authentication.authenticators.x509.AbstractX509ClientCertificateAuthenticator.CONFIRMATION_PAGE_DISALLOWED;
+import static org.keycloak.authentication.authenticators.x509.AbstractX509ClientCertificateAuthenticator.CONNECTION_TYPE;
 import static org.keycloak.authentication.authenticators.x509.AbstractX509ClientCertificateAuthenticator.CRL_RELATIVE_PATH;
 import static org.keycloak.authentication.authenticators.x509.AbstractX509ClientCertificateAuthenticator.CUSTOM_ATTRIBUTE_NAME;
 import static org.keycloak.authentication.authenticators.x509.AbstractX509ClientCertificateAuthenticator.DEFAULT_ATTRIBUTE_NAME;
 import static org.keycloak.authentication.authenticators.x509.AbstractX509ClientCertificateAuthenticator.DEFAULT_MATCH_ALL_EXPRESSION;
+import static org.keycloak.authentication.authenticators.x509.AbstractX509ClientCertificateAuthenticator.DEFAULT_SSL_CLIENT_CERT_PROXY_HTTP_CHAIN_HEADER_PREFIX;
+import static org.keycloak.authentication.authenticators.x509.AbstractX509ClientCertificateAuthenticator.DEFAULT_SSL_CLIENT_CERT_PROXY_HTTP_HEADER;
 import static org.keycloak.authentication.authenticators.x509.AbstractX509ClientCertificateAuthenticator.ENABLE_CRL;
 import static org.keycloak.authentication.authenticators.x509.AbstractX509ClientCertificateAuthenticator.ENABLE_CRLDP;
 import static org.keycloak.authentication.authenticators.x509.AbstractX509ClientCertificateAuthenticator.ENABLE_OCSP;
@@ -49,6 +52,10 @@ import static org.keycloak.authentication.authenticators.x509.AbstractX509Client
 import static org.keycloak.authentication.authenticators.x509.AbstractX509ClientCertificateAuthenticator.MAPPING_SOURCE_SELECTION;
 import static org.keycloak.authentication.authenticators.x509.AbstractX509ClientCertificateAuthenticator.OCSPRESPONDER_URI;
 import static org.keycloak.authentication.authenticators.x509.AbstractX509ClientCertificateAuthenticator.REGULAR_EXPRESSION;
+import static org.keycloak.authentication.authenticators.x509.AbstractX509ClientCertificateAuthenticator.REVERSE_PROXY_CONNECTION;
+import static org.keycloak.authentication.authenticators.x509.AbstractX509ClientCertificateAuthenticator.SSL_CLIENT_CERT_PROXY_HTTP_CHAIN_HEADER_PREFIX;
+import static org.keycloak.authentication.authenticators.x509.AbstractX509ClientCertificateAuthenticator.SSL_CLIENT_CERT_PROXY_HTTP_HEADER;
+import static org.keycloak.authentication.authenticators.x509.AbstractX509ClientCertificateAuthenticator.TWO_WAY_SSL_CONNECTION;
 import static org.keycloak.authentication.authenticators.x509.AbstractX509ClientCertificateAuthenticator.USERNAME_EMAIL_MAPPER;
 import static org.keycloak.authentication.authenticators.x509.AbstractX509ClientCertificateAuthenticator.USER_ATTRIBUTE_MAPPER;
 import static org.keycloak.authentication.authenticators.x509.AbstractX509ClientCertificateAuthenticator.USER_MAPPER_SELECTION;
@@ -105,6 +112,10 @@ public abstract class AbstractX509ClientCertificateAuthenticatorFactory implemen
         for (String m : userModelMappers) {
             mapperTypes.add(m);
         }
+
+        List<String> certificateSources = new LinkedList<>();
+        certificateSources.add(TWO_WAY_SSL_CONNECTION);
+        certificateSources.add(REVERSE_PROXY_CONNECTION);
 
         ProviderConfigProperty userMapperList = new ProviderConfigProperty();
         userMapperList.setType(ProviderConfigProperty.LIST_TYPE);
@@ -171,6 +182,33 @@ public abstract class AbstractX509ClientCertificateAuthenticatorFactory implemen
         identityConfirmationPageDisallowed.setLabel("Bypass identity confirmation");
         identityConfirmationPageDisallowed.setHelpText("By default, the users are prompted to confirm their identity extracted from X509 client certificate. The identity confirmation prompt is skipped if the option is switched on.");
 
+        ProviderConfigProperty connectionTypeProperty = new ProviderConfigProperty();
+        connectionTypeProperty.setType(ProviderConfigProperty.LIST_TYPE);
+        connectionTypeProperty.setName(CONNECTION_TYPE);
+        connectionTypeProperty.setHelpText("Choose Reverse Proxy if the server is behind a reverse proxy; otherwise choose Mutual SSL");
+        connectionTypeProperty.setLabel("Connection via");
+        connectionTypeProperty.setDefaultValue(TWO_WAY_SSL_CONNECTION);
+        connectionTypeProperty.setOptions(certificateSources);
+
+        ProviderConfigProperty reverseProxyHttpHeaderProperty = new ProviderConfigProperty();
+        reverseProxyHttpHeaderProperty.setType(STRING_TYPE);
+        reverseProxyHttpHeaderProperty.setDefaultValue(DEFAULT_SSL_CLIENT_CERT_PROXY_HTTP_HEADER);
+        reverseProxyHttpHeaderProperty.setName(SSL_CLIENT_CERT_PROXY_HTTP_HEADER);
+        reverseProxyHttpHeaderProperty.setLabel("X-SSL-Client Header");
+        reverseProxyHttpHeaderProperty.setHelpText("A special HTTP request header used by Reverse Proxy to forward X.509 client certificate data in PEM format. " +
+                "Reverse proxies such as Apache, can be configured to forward the SSL client certificate data using special HTTP request headers. " +
+                "Example: \"x-ssl-client-cert\": MFeewetpowetw...==");
+
+        ProviderConfigProperty reverseProxyHttpHeaderChainProperty = new ProviderConfigProperty();
+        reverseProxyHttpHeaderChainProperty.setType(STRING_TYPE);
+        reverseProxyHttpHeaderChainProperty.setDefaultValue(DEFAULT_SSL_CLIENT_CERT_PROXY_HTTP_CHAIN_HEADER_PREFIX);
+        reverseProxyHttpHeaderChainProperty.setName(SSL_CLIENT_CERT_PROXY_HTTP_CHAIN_HEADER_PREFIX);
+        reverseProxyHttpHeaderChainProperty.setLabel("X-SSL-Client-Chain Header");
+        reverseProxyHttpHeaderChainProperty.setHelpText("A special HTTP header used by Reverse Proxy to forward the certificates in the SSL client certificate's chain. " +
+                "Reverse Proxies such as Apache, can be configured to forward the certificates in the certificate chain of the X.509 client certificate using special HTTP request headers." +
+                "Example: \"x-ssl-client-cert-chain_0\": MIfwwewposgsdgsdgsdsdg...==" +
+                          "\"x-ssl-client-cert-chain_1\": O3weuposdf23235lkeweibfi...==");
+
         configProperties = asList(mappingMethodList,
                 regExp,
                 userMapperList,
@@ -182,7 +220,10 @@ public abstract class AbstractX509ClientCertificateAuthenticatorFactory implemen
                 ocspResponderUri,
                 keyUsage,
                 extendedKeyUsage,
-                identityConfirmationPageDisallowed);
+                identityConfirmationPageDisallowed,
+                connectionTypeProperty,
+                reverseProxyHttpHeaderProperty,
+                reverseProxyHttpHeaderChainProperty);
     }
 
     @Override

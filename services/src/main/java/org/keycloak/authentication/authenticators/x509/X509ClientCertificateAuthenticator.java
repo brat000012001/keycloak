@@ -56,17 +56,7 @@ public class X509ClientCertificateAuthenticator extends AbstractX509ClientCertif
     public void authenticate(AuthenticationFlowContext context) {
 
         try {
-
             dumpContainerAttributes(context);
-
-            X509Certificate[] certs = getCertificateChain(context);
-            if (certs == null || certs.length == 0) {
-                // No x509 client cert, fall through and
-                // continue processing the rest of the authentication flow
-                logger.debug("[X509ClientCertificateAuthenticator:authenticate] x509 client certificate is not available for mutual SSL.");
-                context.attempted();
-                return;
-            }
 
             X509AuthenticatorConfigModel config = null;
             if (context.getAuthenticatorConfig() != null && context.getAuthenticatorConfig().getConfig() != null) {
@@ -75,6 +65,23 @@ public class X509ClientCertificateAuthenticator extends AbstractX509ClientCertif
             if (config == null) {
                 logger.warn("[X509ClientCertificateAuthenticator:authenticate] x509 Client Certificate Authentication configuration is not available.");
                 context.challenge(createInfoResponse(context, "X509 client authentication has not been configured yet"));
+                context.attempted();
+                return;
+            }
+
+            X509Certificate[] certs;
+            try {
+                certs = getCertificateChain(context, config);
+                if (certs == null || certs.length == 0) {
+                    // No x509 client cert, fall through and
+                    // continue processing the rest of the authentication flow
+                    logger.info("[X509ClientCertificateAuthenticator:authenticate] x509 client certificate is not available for mutual SSL.");
+                    context.attempted();
+                    return;
+                }
+            }
+            catch(GeneralSecurityException | IllegalArgumentException e) {
+                logger.warn(e.getMessage(), e);
                 context.attempted();
                 return;
             }
