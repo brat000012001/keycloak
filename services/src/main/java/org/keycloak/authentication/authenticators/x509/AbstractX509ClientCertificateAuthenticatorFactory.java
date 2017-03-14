@@ -155,7 +155,7 @@ public abstract class AbstractX509ClientCertificateAuthenticatorFactory implemen
         ProviderConfigProperty connectionTypeProperty = new ProviderConfigProperty();
         connectionTypeProperty.setType(ProviderConfigProperty.LIST_TYPE);
         connectionTypeProperty.setName(CONNECTION_TYPE);
-        connectionTypeProperty.setHelpText("Choose Reverse Proxy if the server is behind a reverse proxy; otherwise choose Two-Way SSL");
+        connectionTypeProperty.setHelpText("Choose Reverse Proxy if the server is behind a reverse proxy; otherwise choose Mutual SSL");
         connectionTypeProperty.setLabel("Connection via");
         connectionTypeProperty.setDefaultValue(TWO_WAY_SSL_CONNECTION);
         connectionTypeProperty.setOptions(certificateSources);
@@ -164,20 +164,20 @@ public abstract class AbstractX509ClientCertificateAuthenticatorFactory implemen
         reverseProxyHttpHeaderProperty.setType(STRING_TYPE);
         reverseProxyHttpHeaderProperty.setDefaultValue(DEFAULT_SSL_CLIENT_CERT_PROXY_HTTP_HEADER);
         reverseProxyHttpHeaderProperty.setName(SSL_CLIENT_CERT_PROXY_HTTP_HEADER);
-        reverseProxyHttpHeaderProperty.setLabel("HTTP Request Header Name");
-        reverseProxyHttpHeaderProperty.setHelpText("Special HTTP request header used by Reverse Proxy to forward X.509 client certificate data in PEM format. " +
+        reverseProxyHttpHeaderProperty.setLabel("X-SSL-Client Header");
+        reverseProxyHttpHeaderProperty.setHelpText("A special HTTP request header used by Reverse Proxy to forward X.509 client certificate data in PEM format. " +
                 "Reverse proxies such as Apache, can be configured to forward the SSL client certificate data using special HTTP request headers. " +
-                "Example: \"x-ssl-client-cert\": <PEM encoded X.509 certificate>");
+                "Example: \"x-ssl-client-cert\": MFeewetpowetw...==");
 
         ProviderConfigProperty reverseProxyHttpHeaderChainProperty = new ProviderConfigProperty();
         reverseProxyHttpHeaderChainProperty.setType(STRING_TYPE);
         reverseProxyHttpHeaderChainProperty.setDefaultValue(DEFAULT_SSL_CLIENT_CERT_PROXY_HTTP_CHAIN_HEADER_PREFIX);
         reverseProxyHttpHeaderChainProperty.setName(SSL_CLIENT_CERT_PROXY_HTTP_CHAIN_HEADER_PREFIX);
-        reverseProxyHttpHeaderChainProperty.setLabel("HTTP Request Header Prefix");
-        reverseProxyHttpHeaderChainProperty.setHelpText("Special HTTP header used by Reverse Proxy to forward the certificates in the SSL client certificate's chain. " +
+        reverseProxyHttpHeaderChainProperty.setLabel("X-SSL-Client-Chain Header");
+        reverseProxyHttpHeaderChainProperty.setHelpText("A special HTTP header used by Reverse Proxy to forward the certificates in the SSL client certificate's chain. " +
                 "Reverse Proxies such as Apache, can be configured to forward the certificates in the certificate chain of the X.509 client certificate using special HTTP request headers." +
-                "Example: \"x-ssl-client-cert-chain_0\": <PEM encoded X.509 issuer certificate>" +
-                          "\"x-ssl-client-cert-chain_1\": <PEM encoded X.509 root certificate>");
+                "Example: \"x-ssl-client-cert-chain_0\": MIfwwewposgsdgsdgsdsdg...==" +
+                          "\"x-ssl-client-cert-chain_1\": O3weuposdf23235lkeweibfi...==");
 
         configProperties = asList(mappingMethodList,
                 regExp,

@@ -29,7 +29,9 @@ import org.keycloak.authentication.authenticators.browser.AbstractUsernameFormAu
 import org.keycloak.authentication.authenticators.x509.CertificateValidator;
 import org.keycloak.authentication.authenticators.x509.UserIdentityExtractor;
 import org.keycloak.authentication.authenticators.x509.UserIdentityToModelMapper;
+import org.keycloak.authentication.authenticators.x509.X509AuthenticatorConfigModel;
 import org.keycloak.authentication.authenticators.x509.X509ClientCertificateAuthenticator;
+import org.keycloak.common.util.PemUtils;
 import org.keycloak.events.Details;
 import org.keycloak.events.Errors;
 import org.keycloak.events.EventBuilder;
@@ -39,6 +41,7 @@ import org.keycloak.models.utils.FormMessage;
 import org.keycloak.services.managers.BruteForceProtector;
 import org.mockito.*;
 
+import javax.ws.rs.core.HttpHeaders;
 import javax.ws.rs.core.MultivaluedHashMap;
 import javax.ws.rs.core.MultivaluedMap;
 import javax.ws.rs.core.Response;
@@ -50,6 +53,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.StringTokenizer;
 
+import static org.keycloak.authentication.authenticators.x509.AbstractX509ClientCertificateAuthenticator.DEFAULT_SSL_CLIENT_CERT_PROXY_HTTP_CHAIN_HEADER_PREFIX;
+import static org.keycloak.authentication.authenticators.x509.AbstractX509ClientCertificateAuthenticator.DEFAULT_SSL_CLIENT_CERT_PROXY_HTTP_HEADER;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.*;
@@ -80,6 +85,9 @@ public class ValidateX509CertificateFormAuthenticatorTest extends AbstractX509Te
     @Mock private LoginFormsProvider loginFormsProvider;
     @Mock private AuthenticationExecutionModel executionModel;
     @Spy private CertificateValidator.CertificateValidatorBuilder validatorBuilder;
+    @Mock private HttpHeaders httpHeaders;
+    @Mock private MultivaluedMap<String,String> requestHeaders;
+
 
     @FunctionalInterface
     public interface ConsumerThatThrows<T> {
@@ -117,6 +125,9 @@ public class ValidateX509CertificateFormAuthenticatorTest extends AbstractX509Te
         doReturn(validatorBuilder).when(authenticator).certificateValidationParameters(any());
         doReturn(userIdExtractor).when(authenticator).getUserIdentityExtractor(any());
         doReturn(userIdModelMapper).when(authenticator).getUserIdentityToModelMapper(any());
+
+        doReturn(httpHeaders).when(context).getHttpHeaders();
+        doReturn(requestHeaders).when(httpHeaders).getRequestHeaders();
     }
     @Test
     public void testInvalidUserResponseWhenNullCertificate() throws NoSuchAlgorithmException, CertificateEncodingException {
@@ -410,4 +421,166 @@ public class ValidateX509CertificateFormAuthenticatorTest extends AbstractX509Te
         verify(flowContext,never()).attempted();
         verify(flowContext).success();
     }
+
+    @Test
+    public void testReverseProxyMissingProxySslHttpHeaderConfig() throws NoSuchAlgorithmException, CertificateEncodingException {
+
+        X509AuthenticatorConfigModel tempConfig =
+                new X509AuthenticatorConfigModel().setConnectionReverseProxy();
+
+        doReturn(tempConfig.getConfig()).when(config).getConfig();
+
+        authenticator.authenticate(flowContext);
+
+        verify(events,never()).error(any());
+        verify(context,never()).getAttribute(anyString());
+        verify(context,never()).getHttpHeaders();
+        verify(httpHeaders,never()).getRequestHeaders();
+        verify(flowContext).attempted();
+    }
+
+    @Test
+    public void testReverseProxyMissingSslCertChainHttpHeaderConfig() throws NoSuchAlgorithmException, CertificateEncodingException {
+
+        X509AuthenticatorConfigModel tempConfig =
+                new X509AuthenticatorConfigModel().setConnectionReverseProxy();
+        tempConfig.setReverseProxyHttpHeader(DEFAULT_SSL_CLIENT_CERT_PROXY_HTTP_HEADER);
+
+        doReturn(tempConfig.getConfig()).when(config).getConfig();
+
+        authenticator.authenticate(flowContext);
+
+        verify(events,never()).error(any());
+        verify(context,never()).getAttribute(anyString());
+        verify(context,times(1)).getHttpHeaders();
+        verify(httpHeaders, times(1)).getRequestHeaders();
+        verify(requestHeaders,times(1)).getFirst(matches(DEFAULT_SSL_CLIENT_CERT_PROXY_HTTP_HEADER));
+        verify(requestHeaders,never()).getFirst(matches(DEFAULT_SSL_CLIENT_CERT_PROXY_HTTP_CHAIN_HEADER_PREFIX + "_\\d+"));
+        verify(flowContext).attempted();
+    }
+
+    @Test
+    public void testReverseProxyNullProxySslCertHttpHeader() throws NoSuchAlgorithmException, CertificateEncodingException {
+
+        X509AuthenticatorConfigModel tempConfig =
+                new X509AuthenticatorConfigModel().setConnectionReverseProxy();
+        tempConfig.setReverseProxyHttpHeader(DEFAULT_SSL_CLIENT_CERT_PROXY_HTTP_HEADER);
+        tempConfig.setReverseProxyHttpHeaderChainPrefix(DEFAULT_SSL_CLIENT_CERT_PROXY_HTTP_CHAIN_HEADER_PREFIX);
+
+        doReturn(null).when(requestHeaders).getFirst(DEFAULT_SSL_CLIENT_CERT_PROXY_HTTP_HEADER);
+        doReturn(tempConfig.getConfig()).when(config).getConfig();
+
+        authenticator.authenticate(flowContext);
+
+        verify(events,never()).error(any());
+        verify(context,never()).getAttribute(anyString());
+        verify(context).getHttpHeaders();
+        verify(httpHeaders).getRequestHeaders();
+        verify(flowContext).attempted();
+    }
+
+    @Test
+    public void testReverseProxyMalformedProxySslCertHttpHeader() throws NoSuchAlgorithmException, CertificateEncodingException {
+
+        X509AuthenticatorConfigModel tempConfig =
+                new X509AuthenticatorConfigModel().setConnectionReverseProxy();
+        tempConfig.setReverseProxyHttpHeader(DEFAULT_SSL_CLIENT_CERT_PROXY_HTTP_HEADER);
+        tempConfig.setReverseProxyHttpHeaderChainPrefix(DEFAULT_SSL_CLIENT_CERT_PROXY_HTTP_CHAIN_HEADER_PREFIX);
+
+        doReturn("Some bad x.509 certificate").when(requestHeaders).getFirst(DEFAULT_SSL_CLIENT_CERT_PROXY_HTTP_HEADER);
+        doReturn(tempConfig.getConfig()).when(config).getConfig();
+
+        authenticator.authenticate(flowContext);
+
+        verify(events,never()).error(any());
+        verify(context,never()).getAttribute(anyString());
+        verify(context).getHttpHeaders();
+        verify(httpHeaders).getRequestHeaders();
+        verify(flowContext).attempted();
+    }
+
+    @Test
+    public void testReverseProxySuccessfulAuthentication() throws NoSuchAlgorithmException, CertificateEncodingException {
+
+        X509AuthenticatorConfigModel tempConfig =
+                new X509AuthenticatorConfigModel().setConnectionReverseProxy();
+        tempConfig.setReverseProxyHttpHeader(DEFAULT_SSL_CLIENT_CERT_PROXY_HTTP_HEADER);
+        tempConfig.setReverseProxyHttpHeaderChainPrefix(DEFAULT_SSL_CLIENT_CERT_PROXY_HTTP_CHAIN_HEADER_PREFIX);
+
+        String encodedCertificate = PemUtils.encodeCertificate(clientCertificates[0]);
+
+        doReturn(encodedCertificate).when(requestHeaders).getFirst(DEFAULT_SSL_CLIENT_CERT_PROXY_HTTP_HEADER);
+        doReturn(tempConfig.getConfig()).when(config).getConfig();
+
+        authenticator.authenticate(flowContext);
+
+        verify(events,never()).error(any());
+        verify(context,never()).getAttribute(anyString());
+        verify(context,times(5)).getHttpHeaders();
+        verify(httpHeaders,times(5)).getRequestHeaders();
+        verify(requestHeaders,times(1)).getFirst(eq(DEFAULT_SSL_CLIENT_CERT_PROXY_HTTP_HEADER));
+        verify(requestHeaders,times(4)).getFirst(matches(DEFAULT_SSL_CLIENT_CERT_PROXY_HTTP_CHAIN_HEADER_PREFIX + "_\\d+"));
+        verify(flowContext).attempted();
+    }
+
+    private void testReverseProxySuccessForceChallenge(String encodedCertificate) throws Exception {
+
+        final X509AuthenticatorConfigModel tempConfig =
+                new X509AuthenticatorConfigModel().setConnectionReverseProxy();
+        tempConfig.setReverseProxyHttpHeader(DEFAULT_SSL_CLIENT_CERT_PROXY_HTTP_HEADER);
+        tempConfig.setReverseProxyHttpHeaderChainPrefix(DEFAULT_SSL_CLIENT_CERT_PROXY_HTTP_CHAIN_HEADER_PREFIX);
+
+        final String userName = "some_user_name";
+
+        doReturn(encodedCertificate).when(requestHeaders).getFirst(DEFAULT_SSL_CLIENT_CERT_PROXY_HTTP_HEADER);
+        doReturn(tempConfig.getConfig()).when(config).getConfig();
+
+        CertificateValidator mockValidator = spy(new CertificateValidator());
+        doReturn(mockValidator).when(validatorBuilder).build(any());
+
+        doReturn(mockValidator).when(mockValidator).checkRevocationStatus();
+        doReturn(mockValidator).when(mockValidator).validateKeyUsage();
+        doReturn(mockValidator).when(mockValidator).validateExtendedKeyUsage();
+
+        doReturn(userName).when(userIdExtractor).extractUserIdentity(any());
+        doReturn(user).when(userIdModelMapper).find(any(),any());
+        doReturn(userName).when(user).getUsername();
+        doReturn(true).when(user).isEnabled();
+        doReturn(false).when(realm).isBruteForceProtected();
+        doReturn(loginFormsProvider).when(loginFormsProvider).setAttribute(anyString(), anyString());
+
+        authenticator.authenticate(flowContext);
+
+        verify(events).detail(eq(Details.USERNAME), eq(userName));
+        verify(clientSession).setNote(eq(AbstractUsernameFormAuthenticator.ATTEMPTED_USERNAME), eq(userName));
+        verify(events,never()).error(any());
+        verify(flowContext).setUser(eq(user));
+        verify(loginFormsProvider,never()).setErrors(any());
+        verify(clientSession).setNote(eq(AuthenticationProcessor.CURRENT_AUTHENTICATION_EXECUTION), eq("execution_1"));
+
+        verify(loginFormsProvider,times(3)).setAttribute(nameCaptor.capture(), valueCaptor.capture());
+        Assert.assertEquals("some_user_name", valueCaptor.getAllValues().get(0));
+        Assert.assertEquals("CN=Client", valueCaptor.getAllValues().get(1));
+        Assert.assertEquals(true, valueCaptor.getAllValues().get(2));
+
+        verify(flowContext,atLeastOnce()).forceChallenge(any());
+
+        verify(events,never()).error(any());
+        verify(context,never()).getAttribute(anyString());
+        verify(context,times(5)).getHttpHeaders();
+        verify(httpHeaders,times(5)).getRequestHeaders();
+        verify(flowContext,never()).attempted();
+    }
+
+    @Test
+    public void testReverseProxySuccessForceChallenge() throws Exception {
+        testReverseProxySuccessForceChallenge(PemUtils.encodeCertificate(clientCertificates[0]));
+    }
+
+    @Test
+    public void testReverseProxySuccessForceChallengeWithCertificateEnclosedWithDoubleQuotes() throws Exception {
+        final String encodedCertificate = "\"" + PemUtils.encodeCertificate(clientCertificates[0]) + "\"";
+        testReverseProxySuccessForceChallenge(encodedCertificate);
+    }
+
 }

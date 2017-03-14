@@ -43,8 +43,24 @@ public abstract class CertificateDataStorage {
      */
     public abstract X509Certificate[] getClientCertificateChain() throws GeneralSecurityException;
 
+    private static String trimDoubleQuotes(String quotedString) {
+
+        if (quotedString == null) return null;
+
+        int len = quotedString.length();
+        if (len > 1 && quotedString.charAt(0) == '"' &&
+                quotedString.charAt(len - 1) == '"') {
+            return quotedString.substring(1, len - 1);
+        }
+        return quotedString;
+    }
+
     protected static X509Certificate getCertificateFromHttpHeader(HttpRequest request, String httpHeader) throws GeneralSecurityException {
-        final String encodedCertificate = request.getHttpHeaders().getRequestHeaders().getFirst(httpHeader);
+        String encodedCertificate = request.getHttpHeaders().getRequestHeaders().getFirst(httpHeader);
+
+        // Remove double quotes
+        encodedCertificate = trimDoubleQuotes(encodedCertificate);
+
         X509Certificate sslCertificate = getCertificateFromString(encodedCertificate);
         if (sslCertificate == null) {
             logger.warnf("HTTP header \"%s\" does not contain a valid x.509 certificate",
@@ -112,32 +128,27 @@ public abstract class CertificateDataStorage {
 
         private static final int MAX_CERTIFICATE_DEPTH = 4;
         private final HttpRequest request;
-        private final String sslClientCertificateHeader;
-        private final String sslClientCertificateChainPrefix;
+        private final String proxySslCertHttpHeader;
+        private final String proxySslCertChainHttpHeader;
         CertificateDataStorageFromProxiedRequest(HttpRequest request,
-                                    String sslClientCertificateHeader,
-                                    String sslClientCertificateChainPrefixHeader) {
+                                    String proxySslCertHttpHeader,
+                                    String proxySslCertChainHttpHeader) {
             if (request == null) {
-                throw new NullPointerException("request");
+                throw new IllegalArgumentException("Http Request is invalid");
             }
-            if (sslClientCertificateHeader == null ||
-                    sslClientCertificateHeader.trim().length() == 0) {
+            if (proxySslCertHttpHeader == null ||
+                    proxySslCertHttpHeader.trim().length() == 0) {
                 throw new IllegalArgumentException("SSL Client Certificate Header is null or empty");
             }
 
-            if (sslClientCertificateChainPrefixHeader == null ||
-                    sslClientCertificateChainPrefixHeader.trim().length() == 0) {
-                throw new IllegalArgumentException("SSL Client Certificate Chain Header Prefix is null or empty");
-            }
-
             this.request = request;
-            this.sslClientCertificateHeader = sslClientCertificateHeader;
-            this.sslClientCertificateChainPrefix = sslClientCertificateChainPrefixHeader;
+            this.proxySslCertHttpHeader = proxySslCertHttpHeader;
+            this.proxySslCertChainHttpHeader = proxySslCertChainHttpHeader;
         }
 
         @Override
         public X509Certificate[] getClientCertificateChain() throws GeneralSecurityException {
-            List<X509Certificate> chain = new ArrayList();
+            List<X509Certificate> chain = new ArrayList<>();
 
             // Get the client certificate
             X509Certificate clientCertificate = getClientCertificate();
@@ -162,11 +173,15 @@ public abstract class CertificateDataStorage {
             return chain.toArray(new X509Certificate[0]);
         }
         private X509Certificate getClientCertificate() throws GeneralSecurityException {
-            return getCertificateFromHttpHeader(request, sslClientCertificateHeader);
+            return getCertificateFromHttpHeader(request, proxySslCertHttpHeader);
         }
 
         private X509Certificate getChainCertificate(int n) throws GeneralSecurityException {
-            String httpHeader = String.format("%s_%d", sslClientCertificateChainPrefix, n);
+            if (proxySslCertChainHttpHeader == null ||
+                    proxySslCertChainHttpHeader.trim().length() == 0) {
+                return null;
+            }
+            String httpHeader = String.format("%s_%d", proxySslCertChainHttpHeader, n);
             return getCertificateFromHttpHeader(request, httpHeader);
         }
     }
@@ -179,9 +194,9 @@ public abstract class CertificateDataStorage {
 
     public static CertificateDataStorage getCertificateStorageFromProxiedRequest(
             HttpRequest request,
-            String sslCertificateHeader,
-            String sslCertificateChainHeaderPrefix) {
+            String proxySslCertHeader,
+            String proxySslCertChainHeader) {
         return new CertificateDataStorageFromProxiedRequest(request,
-                sslCertificateHeader, sslCertificateChainHeaderPrefix);
+                proxySslCertHeader, proxySslCertChainHeader);
     }
 }

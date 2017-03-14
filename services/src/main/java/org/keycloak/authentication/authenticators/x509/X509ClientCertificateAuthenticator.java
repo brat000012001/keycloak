@@ -79,7 +79,7 @@ public class X509ClientCertificateAuthenticator extends AbstractX509ClientCertif
                     return;
                 }
             }
-            catch(GeneralSecurityException e) {
+            catch(GeneralSecurityException | IllegalArgumentException e) {
                 logger.warn(e.getMessage(), e);
                 context.attempted();
                 return;

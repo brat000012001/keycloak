@@ -71,7 +71,7 @@ public class ValidateX509CertificateUsername extends AbstractX509ClientCertifica
                 return;
             }
         }
-        catch(GeneralSecurityException e) {
+        catch(GeneralSecurityException | IllegalArgumentException e) {
             logger.error(e.getMessage(), e);
             Response challengeResponse = errorResponse(Response.Status.UNAUTHORIZED.getStatusCode(), "invalid_request", e.getMessage());
             context.failure(AuthenticationFlowError.INTERNAL_ERROR, challengeResponse);
