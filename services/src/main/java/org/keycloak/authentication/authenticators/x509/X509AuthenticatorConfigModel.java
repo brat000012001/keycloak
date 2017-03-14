@@ -77,6 +77,29 @@ public class X509AuthenticatorConfigModel extends AuthenticatorConfigModel {
         }
     }
 
+    public enum ConnectionType {
+        TWO_WAY_SSL(TWO_WAY_SSL_CONNECTION),
+        REVERSE_PROXY(REVERSE_PROXY_CONNECTION);
+
+        private final String name;
+        ConnectionType(String name) {
+            this.name = name;
+        }
+
+        public String getName() { return name; }
+
+        public static ConnectionType parse(String name) throws IllegalArgumentException {
+            if (name == null || name.trim().length() == 0)
+                throw new IllegalArgumentException("name");
+            for (ConnectionType value : ConnectionType.values()) {
+                if (value.getName().equalsIgnoreCase(name)) {
+                    return value;
+                }
+            }
+            throw new IndexOutOfBoundsException("name");
+        }
+    }
+
     public X509AuthenticatorConfigModel(AuthenticatorConfigModel model) {
         this.setAlias(model.getAlias());
         this.setId(model.getId());
@@ -227,4 +250,38 @@ public class X509AuthenticatorConfigModel extends AuthenticatorConfigModel {
         return this;
     }
 
+    public X509AuthenticatorConfigModel setConnectionTwoWaySSL() {
+        getConfig().put(CONNECTION_TYPE, TWO_WAY_SSL_CONNECTION);
+        return this;
+    }
+    public X509AuthenticatorConfigModel setConnectionReverseProxy() {
+        getConfig().put(CONNECTION_TYPE, REVERSE_PROXY_CONNECTION);
+        return this;
+    }
+
+    public ConnectionType getConnectionType() {
+        String value = getConfig().getOrDefault(CONNECTION_TYPE, TWO_WAY_SSL_CONNECTION);
+        if (value != null || value.trim().length() > 0) {
+            return ConnectionType.parse(value);
+        }
+        return ConnectionType.parse(TWO_WAY_SSL_CONNECTION);
+    }
+
+    public X509AuthenticatorConfigModel setReverseProxyHttpHeader(String httpHeader) {
+        getConfig().put(SSL_CLIENT_CERT_PROXY_HTTP_HEADER, httpHeader);
+        return this;
+    }
+
+    public X509AuthenticatorConfigModel setReverseProxyHttpHeaderChainPrefix(String httpHeaderPrefix) {
+        getConfig().put(SSL_CLIENT_CERT_PROXY_HTTP_CHAIN_HEADER_PREFIX, httpHeaderPrefix);
+        return this;
+    }
+
+    public String getReverseProxyHttpHeader() {
+        return getConfig().getOrDefault(SSL_CLIENT_CERT_PROXY_HTTP_HEADER, null);
+    }
+
+    public String getReverseProxyHttpHeaderChainPrefix() {
+        return getConfig().getOrDefault(SSL_CLIENT_CERT_PROXY_HTTP_CHAIN_HEADER_PREFIX, null);
+    }
 }

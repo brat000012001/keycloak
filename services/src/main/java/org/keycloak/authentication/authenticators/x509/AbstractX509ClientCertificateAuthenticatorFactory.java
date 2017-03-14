@@ -30,7 +30,6 @@ import java.util.List;
 import static java.util.Arrays.asList;
 import static org.keycloak.authentication.authenticators.x509.AbstractX509ClientCertificateAuthenticator.*;
 import static org.keycloak.provider.ProviderConfigProperty.BOOLEAN_TYPE;
-import static org.keycloak.provider.ProviderConfigProperty.PASSWORD;
 import static org.keycloak.provider.ProviderConfigProperty.STRING_TYPE;
 
 /**
@@ -83,6 +82,10 @@ public abstract class AbstractX509ClientCertificateAuthenticatorFactory implemen
         for (String m : userModelMappers) {
             mapperTypes.add(m);
         }
+
+        List<String> certificateSources = new LinkedList<>();
+        certificateSources.add(TWO_WAY_SSL_CONNECTION);
+        certificateSources.add(REVERSE_PROXY_CONNECTION);
 
         ProviderConfigProperty userMapperList = new ProviderConfigProperty();
         userMapperList.setType(ProviderConfigProperty.LIST_TYPE);
@@ -149,6 +152,33 @@ public abstract class AbstractX509ClientCertificateAuthenticatorFactory implemen
         identityConfirmationPageDisallowed.setLabel("Bypass identity confirmation");
         identityConfirmationPageDisallowed.setHelpText("By default, the users are prompted to confirm their identity extracted from X509 client certificate. The identity confirmation prompt is skipped if the option is switched on.");
 
+        ProviderConfigProperty connectionTypeProperty = new ProviderConfigProperty();
+        connectionTypeProperty.setType(ProviderConfigProperty.LIST_TYPE);
+        connectionTypeProperty.setName(CONNECTION_TYPE);
+        connectionTypeProperty.setHelpText("Choose Reverse Proxy if the server is behind a reverse proxy; otherwise choose Two-Way SSL");
+        connectionTypeProperty.setLabel("Connection via");
+        connectionTypeProperty.setDefaultValue(TWO_WAY_SSL_CONNECTION);
+        connectionTypeProperty.setOptions(certificateSources);
+
+        ProviderConfigProperty reverseProxyHttpHeaderProperty = new ProviderConfigProperty();
+        reverseProxyHttpHeaderProperty.setType(STRING_TYPE);
+        reverseProxyHttpHeaderProperty.setDefaultValue(DEFAULT_SSL_CLIENT_CERT_PROXY_HTTP_HEADER);
+        reverseProxyHttpHeaderProperty.setName(SSL_CLIENT_CERT_PROXY_HTTP_HEADER);
+        reverseProxyHttpHeaderProperty.setLabel("HTTP Request Header Name");
+        reverseProxyHttpHeaderProperty.setHelpText("Special HTTP request header used by Reverse Proxy to forward X.509 client certificate data in PEM format. " +
+                "Reverse proxies such as Apache, can be configured to forward the SSL client certificate data using special HTTP request headers. " +
+                "Example: \"x-ssl-client-cert\": <PEM encoded X.509 certificate>");
+
+        ProviderConfigProperty reverseProxyHttpHeaderChainProperty = new ProviderConfigProperty();
+        reverseProxyHttpHeaderChainProperty.setType(STRING_TYPE);
+        reverseProxyHttpHeaderChainProperty.setDefaultValue(DEFAULT_SSL_CLIENT_CERT_PROXY_HTTP_CHAIN_HEADER_PREFIX);
+        reverseProxyHttpHeaderChainProperty.setName(SSL_CLIENT_CERT_PROXY_HTTP_CHAIN_HEADER_PREFIX);
+        reverseProxyHttpHeaderChainProperty.setLabel("HTTP Request Header Prefix");
+        reverseProxyHttpHeaderChainProperty.setHelpText("Special HTTP header used by Reverse Proxy to forward the certificates in the SSL client certificate's chain. " +
+                "Reverse Proxies such as Apache, can be configured to forward the certificates in the certificate chain of the X.509 client certificate using special HTTP request headers." +
+                "Example: \"x-ssl-client-cert-chain_0\": <PEM encoded X.509 issuer certificate>" +
+                          "\"x-ssl-client-cert-chain_1\": <PEM encoded X.509 root certificate>");
+
         configProperties = asList(mappingMethodList,
                 regExp,
                 userMapperList,
@@ -160,7 +190,10 @@ public abstract class AbstractX509ClientCertificateAuthenticatorFactory implemen
                 ocspResponderUri,
                 keyUsage,
                 extendedKeyUsage,
-                identityConfirmationPageDisallowed);
+                identityConfirmationPageDisallowed,
+                connectionTypeProperty,
+                reverseProxyHttpHeaderProperty,
+                reverseProxyHttpHeaderChainProperty);
     }
 
     @Override

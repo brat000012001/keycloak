@@ -28,6 +28,7 @@ import org.keycloak.forms.login.LoginFormsProvider;
 import org.keycloak.models.*;
 
 import javax.ws.rs.core.Response;
+import java.security.GeneralSecurityException;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.X509Certificate;
 import java.util.function.Function;
@@ -67,7 +68,13 @@ public abstract class AbstractX509ClientCertificateAuthenticator implements Auth
     public static final String CERTIFICATE_EXTENDED_KEY_USAGE = "x509-cert-auth.extendedkeyusage";
     static final String DEFAULT_MATCH_ALL_EXPRESSION = "(.*?)(?:$)";
     public static final String CONFIRMATION_PAGE_DISALLOWED = "x509-cert-auth.confirmation-page-disallowed";
-
+    public static final String CONNECTION_TYPE = "x509-cert-auth.ssl-client-certificate-source";
+    public static final String TWO_WAY_SSL_CONNECTION = "Mutual SSL";
+    public static final String REVERSE_PROXY_CONNECTION = "Reverse Proxy";
+    public static final String SSL_CLIENT_CERT_PROXY_HTTP_HEADER = "x509-cert-auth.ssl-client-cert-proxy-header";
+    public static final String SSL_CLIENT_CERT_PROXY_HTTP_CHAIN_HEADER_PREFIX = "x509-cert-auth.ssl-client-cert-proxy-chain-prefix";
+    public static final String DEFAULT_SSL_CLIENT_CERT_PROXY_HTTP_HEADER = "x-ssl-client-cert";
+    public static final String DEFAULT_SSL_CLIENT_CERT_PROXY_HTTP_CHAIN_HEADER_PREFIX= "x-ssl-client-cert-chain";
 
     protected Response createInfoResponse(AuthenticationFlowContext context, String infoMessage, Object ... parameters) {
         LoginFormsProvider form = context.form();
@@ -104,7 +111,7 @@ public abstract class AbstractX509ClientCertificateAuthenticator implements Auth
             try {
                 return new JcaX509CertificateHolder(certs[0]).getSubject();
             } catch (CertificateEncodingException e) {
-                e.printStackTrace();
+                logger.error(e.getMessage(), e);
             }
             return null;
         };
@@ -113,7 +120,7 @@ public abstract class AbstractX509ClientCertificateAuthenticator implements Auth
             try {
                 return new JcaX509CertificateHolder(certs[0]).getIssuer();
             } catch (CertificateEncodingException e) {
-                e.printStackTrace();
+                logger.error(e.getMessage(), e);
             }
             return null;
         };
@@ -186,9 +193,36 @@ public abstract class AbstractX509ClientCertificateAuthenticator implements Auth
 
     }
 
-    protected X509Certificate[] getCertificateChain(AuthenticationFlowContext context) {
+    protected X509Certificate[] getCertificateChain(AuthenticationFlowContext context,
+                                                    X509AuthenticatorConfigModel config) throws GeneralSecurityException {
+
+        X509AuthenticatorConfigModel.ConnectionType connectionType =
+                config.getConnectionType();
+
+        CertificateDataStorage certificateStorage;
+        switch (connectionType) {
+            case REVERSE_PROXY:
+                certificateStorage = CertificateDataStorage.getCertificateStorageFromProxiedRequest(
+                        context.getHttpRequest(),
+                        config.getReverseProxyHttpHeader(),
+                        config.getReverseProxyHttpHeaderChainPrefix());
+                break;
+
+            case TWO_WAY_SSL:
+                certificateStorage = CertificateDataStorage.getCertificateFromTwoWaySSL(
+                        context.getHttpRequest());
+                break;
+
+            default:
+                logger.warnf("Unrecognizable connection type: \"%s\"",
+                        connectionType);
+                certificateStorage = CertificateDataStorage.getCertificateFromTwoWaySSL(
+                        context.getHttpRequest());
+                break;
+        }
+
         // Get a x509 client certificate
-        X509Certificate[] certs = (X509Certificate[]) context.getHttpRequest().getAttribute(JAVAX_SERVLET_REQUEST_X509_CERTIFICATE);
+        X509Certificate[] certs = certificateStorage.getClientCertificateChain();
 
         if (certs != null) {
             for (X509Certificate cert : certs) {
