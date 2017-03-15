@@ -26,6 +26,7 @@ import org.keycloak.common.util.PemUtils;
 import java.security.GeneralSecurityException;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
+import java.util.LinkedList;
 import java.util.List;
 
 /**
@@ -50,9 +51,28 @@ public abstract class CertificateDataStorage {
         int len = quotedString.length();
         if (len > 1 && quotedString.charAt(0) == '"' &&
                 quotedString.charAt(len - 1) == '"') {
+            logger.trace("Detected a certificate enclosed in double quotes");
             return quotedString.substring(1, len - 1);
         }
         return quotedString;
+    }
+    private static String removeBeginEnd(String pem) {
+        pem = pem.replace("-----BEGIN CERTIFICATE-----", "");
+        pem = pem.replace("-----END CERTIFICATE-----", "");
+        pem = pem.replace("\r\n", "");
+        pem = pem.replace("\n", "");
+        return pem.trim();
+    }
+
+    private static X509Certificate decodeCertificate(String encodedCertificate) throws PemException {
+
+        if (encodedCertificate == null) {
+            return null;
+        }
+        if (encodedCertificate.startsWith("-----BEGIN CERTIFICATE-----")) {
+            encodedCertificate = removeBeginEnd(encodedCertificate);
+        }
+        return PemUtils.decodeCertificate(encodedCertificate);
     }
 
     protected static X509Certificate getCertificateFromHttpHeader(HttpRequest request, String httpHeader) throws GeneralSecurityException {
@@ -61,39 +81,33 @@ public abstract class CertificateDataStorage {
         // Remove double quotes
         encodedCertificate = trimDoubleQuotes(encodedCertificate);
 
-        X509Certificate sslCertificate = getCertificateFromString(encodedCertificate);
-        if (sslCertificate == null) {
-            logger.warnf("HTTP header \"%s\" does not contain a valid x.509 certificate",
-                    httpHeader);
-        } else {
-            logger.debugf("Found a valid x.509 certificate in \"%s\" HTTP header",
-                    httpHeader);
-        }
-        return sslCertificate;
-    }
-
-    protected static X509Certificate getCertificateFromString(String encodedCertificate) throws GeneralSecurityException {
-
         if (encodedCertificate == null ||
                 encodedCertificate.trim().length() == 0) {
+            logger.warnf("HTTP header \"%s\" is empty", httpHeader);
             return null;
         }
 
-        X509Certificate sslCertificate;
         try {
-            sslCertificate = PemUtils.decodeCertificate(encodedCertificate);
+            X509Certificate cert = decodeCertificate(encodedCertificate);
+            if (cert == null) {
+                logger.warnf("HTTP header \"%s\" does not contain a valid x.509 certificate\n%s",
+                        httpHeader, encodedCertificate);
+            } else {
+                logger.debugf("Found a valid x.509 certificate in \"%s\" HTTP header",
+                        httpHeader);
+            }
+            return cert;
         }
         catch(PemException e) {
             logger.error(e.getMessage(), e);
             throw new GeneralSecurityException(e);
         }
-        return sslCertificate;
     }
 
     /**
      * The storage extracts the x509 certificate chain from Two-Way SSL.
      */
-    static class CertificateDataStorageMutualSSL extends CertificateDataStorage {
+    private static class CertificateDataStorageMutualSSL extends CertificateDataStorage {
 
         public static final String JAVAX_SERVLET_REQUEST_X509_CERTIFICATE = "javax.servlet.request.X509Certificate";
 
@@ -124,7 +138,7 @@ public abstract class CertificateDataStorage {
      * other certificates in its chain from a sub-set of HTTP headers
      * set by the reverse proxy
      */
-    static class CertificateDataStorageFromProxiedRequest extends CertificateDataStorage {
+    private static class CertificateDataStorageFromProxiedRequest extends CertificateDataStorage {
 
         private static final int MAX_CERTIFICATE_DEPTH = 4;
         private final HttpRequest request;
@@ -151,17 +165,15 @@ public abstract class CertificateDataStorage {
             List<X509Certificate> chain = new ArrayList<>();
 
             // Get the client certificate
-            X509Certificate clientCertificate = getClientCertificate();
-            if (clientCertificate != null) {
-
-                chain.add(clientCertificate);
-
+            X509Certificate cert = getClientCertificate();
+            if (cert != null) {
+                chain.add(cert);
                 // Get the certificate of the client certificate chain
                 for (int i = 0; i < MAX_CERTIFICATE_DEPTH; i++) {
                     try {
-                        X509Certificate chainCertificate = getChainCertificate(i);
-                        if (chainCertificate != null) {
-                            chain.add(chainCertificate);
+                        cert = getChainCertificate(i);
+                        if (cert != null) {
+                            chain.add(cert);
                         }
                     }
                     catch(GeneralSecurityException e) {
